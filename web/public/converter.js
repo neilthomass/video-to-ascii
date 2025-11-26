@@ -436,8 +436,8 @@ class VideoToAsciiConverter {
                         const sampleRate = audioBuffer.sampleRate;
                         const totalSamples = audioBuffer.length;
 
-                        // Encode in chunks to avoid memory issues and improve quality
-                        const chunkSize = sampleRate; // 1 second chunks
+                        // Encode in smaller chunks for better sync
+                        const chunkSize = Math.floor(sampleRate / 10); // 100ms chunks
                         let timestamp = 0;
 
                         for (let offset = 0; offset < totalSamples; offset += chunkSize) {
@@ -449,28 +449,27 @@ class VideoToAsciiConverter {
 
                             const remainingSamples = Math.min(chunkSize, totalSamples - offset);
 
-                            // Create planar data (separate channel arrays)
-                            const planarData = new Float32Array(remainingSamples * numberOfChannels);
-                            for (let ch = 0; ch < numberOfChannels; ch++) {
-                                const channelData = audioBuffer.getChannelData(ch);
-                                for (let i = 0; i < remainingSamples; i++) {
-                                    planarData[ch * remainingSamples + i] = channelData[offset + i];
+                            // Create interleaved data (samples alternating between channels)
+                            const interleavedData = new Float32Array(remainingSamples * numberOfChannels);
+                            for (let i = 0; i < remainingSamples; i++) {
+                                for (let ch = 0; ch < numberOfChannels; ch++) {
+                                    interleavedData[i * numberOfChannels + ch] = audioBuffer.getChannelData(ch)[offset + i];
                                 }
                             }
 
                             const audioData = new AudioData({
-                                format: 'f32-planar',
+                                format: 'f32',
                                 sampleRate: sampleRate,
                                 numberOfFrames: remainingSamples,
                                 numberOfChannels: numberOfChannels,
                                 timestamp: timestamp,
-                                data: planarData
+                                data: interleavedData
                             });
 
                             audioEncoder.encode(audioData);
                             audioData.close();
 
-                            timestamp += (remainingSamples / sampleRate) * 1_000_000; // microseconds
+                            timestamp += Math.round((remainingSamples / sampleRate) * 1_000_000); // microseconds
                         }
 
                         if (audioEncoder.state !== 'closed') {
