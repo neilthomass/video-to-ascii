@@ -308,6 +308,23 @@ class VideoToAsciiConverter {
     async encodeWithVideoEncoder(frames, fps, width, height, canvas, ctx, audioBuffer = null) {
         return new Promise(async (resolve, reject) => {
             try {
+                // Test if audio encoder will work before adding audio track to muxer
+                let canEncodeAudio = false;
+                if (audioBuffer && typeof AudioEncoder !== 'undefined') {
+                    try {
+                        const testSupport = await AudioEncoder.isConfigSupported({
+                            codec: 'mp4a.40.2',
+                            numberOfChannels: audioBuffer.numberOfChannels,
+                            sampleRate: audioBuffer.sampleRate,
+                            bitrate: 320000
+                        });
+                        canEncodeAudio = testSupport.supported;
+                    } catch (e) {
+                        console.log('Audio encoding not supported:', e);
+                        canEncodeAudio = false;
+                    }
+                }
+
                 const muxerConfig = {
                     target: new Mp4Muxer.ArrayBufferTarget(),
                     video: {
@@ -318,8 +335,8 @@ class VideoToAsciiConverter {
                     fastStart: 'in-memory'
                 };
 
-                // Add audio track if available
-                if (audioBuffer) {
+                // Only add audio track if we can actually encode audio
+                if (canEncodeAudio && audioBuffer) {
                     muxerConfig.audio = {
                         codec: 'aac',
                         numberOfChannels: audioBuffer.numberOfChannels,
@@ -349,10 +366,10 @@ class VideoToAsciiConverter {
                     framerate: fps
                 });
 
-                // Set up audio encoder if we have audio
+                // Set up audio encoder if we can encode audio
                 let audioEncoder = null;
                 let audioEncoderError = null;
-                if (audioBuffer && typeof AudioEncoder !== 'undefined') {
+                if (canEncodeAudio && audioBuffer) {
                     try {
                         audioEncoder = new AudioEncoder({
                             output: (chunk, meta) => {
