@@ -38,8 +38,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (width < 40 || width > 720) {
-            alert('Width must be between 40 and 720');
+        if (width < 40 || width > 240) {
+            alert('Width must be between 40 and 240');
             return;
         }
 
@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 quality: 10,
                 width: currentResult.width,
                 height: currentResult.height,
-                workerScript: 'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js'
+                workerScript: 'gif.worker.js'
             });
 
             const delay = Math.round(1000 / currentResult.fps);

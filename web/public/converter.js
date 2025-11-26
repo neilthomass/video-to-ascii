@@ -69,23 +69,17 @@ class VideoToAsciiConverter {
     }
 
     frameToAscii(sourceCanvas, outputCanvas, asciiWidth) {
+        const sourceCtx = sourceCanvas.getContext('2d');
         const outputCtx = outputCanvas.getContext('2d');
 
         const aspectRatio = sourceCanvas.height / sourceCanvas.width;
         const charAspect = this.charHeight / this.charWidth;
         const asciiHeight = Math.floor(asciiWidth * aspectRatio / charAspect);
 
-        // Keep output resolution constant (1080p) regardless of ASCII width
-        // Scale characters to fit
-        const targetWidth = 1920;
-        const targetHeight = Math.round(targetWidth * aspectRatio);
-
-        const charW = targetWidth / asciiWidth;
-        const charH = targetHeight / asciiHeight;
-        const fontSize = Math.max(8, Math.floor(charH * 0.85));
-
-        outputCanvas.width = targetWidth;
-        outputCanvas.height = targetHeight;
+        const imgWidth = asciiWidth * this.charWidth;
+        const imgHeight = asciiHeight * this.charHeight;
+        outputCanvas.width = imgWidth;
+        outputCanvas.height = imgHeight;
 
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = asciiWidth;
@@ -99,9 +93,9 @@ class VideoToAsciiConverter {
         const pixels = imageData.data;
 
         outputCtx.fillStyle = '#ffffff';
-        outputCtx.fillRect(0, 0, targetWidth, targetHeight);
+        outputCtx.fillRect(0, 0, imgWidth, imgHeight);
 
-        outputCtx.font = `${fontSize}px monospace`;
+        outputCtx.font = '14px monospace';
         outputCtx.textBaseline = 'top';
 
         for (let y = 0; y < asciiHeight; y++) {
@@ -115,14 +109,14 @@ class VideoToAsciiConverter {
 
                 if (char === null) continue;
 
-                const posX = x * charW;
-                const posY = y * charH;
+                const posX = x * this.charWidth;
+                const posY = y * this.charHeight;
                 outputCtx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
                 outputCtx.fillText(char, posX, posY);
             }
         }
 
-        return { width: targetWidth, height: targetHeight };
+        return { width: imgWidth, height: imgHeight };
     }
 
     async extractFrames(video, targetFps, onFrame) {
@@ -314,46 +308,6 @@ class VideoToAsciiConverter {
     async encodeWithVideoEncoder(frames, fps, width, height, canvas, ctx, audioBuffer = null) {
         return new Promise(async (resolve, reject) => {
             try {
-                // First, find a supported codec
-                const codecs = [
-                    'avc1.640028', // AVC Level 4.0 - 1080p (most compatible)
-                    'avc1.640033', // AVC Level 5.1 - 4K
-                    'avc1.64003E', // AVC Level 6.2 - 8K
-                ];
-
-                let selectedCodec = null;
-                for (const codec of codecs) {
-                    try {
-                        const support = await VideoEncoder.isConfigSupported({
-                            codec,
-                            width,
-                            height,
-                            bitrate: 12_000_000,
-                            framerate: fps
-                        });
-
-                        if (support.supported) {
-                            selectedCodec = codec;
-                            console.log('Using codec:', codec);
-                            break;
-                        }
-                    } catch (e) {
-                        console.log('Codec not supported:', codec);
-                    }
-                }
-
-                if (!selectedCodec) {
-                    // Calculate recommended width
-                    const maxPixels = 2073600; // 1080p limit for compatibility
-                    const currentPixels = width * height;
-                    if (currentPixels > maxPixels) {
-                        const aspectRatio = height / width;
-                        const recommendedWidth = Math.floor(Math.sqrt(maxPixels / aspectRatio) / 10) * 10;
-                        throw new Error(`Resolution too high (${width}x${height}). Try reducing ASCII width to ${recommendedWidth} or lower.`);
-                    }
-                    throw new Error('No supported video codec found. Try Chrome browser.');
-                }
-
                 const muxerConfig = {
                     target: new Mp4Muxer.ArrayBufferTarget(),
                     video: {
@@ -388,12 +342,11 @@ class VideoToAsciiConverter {
                 });
 
                 videoEncoder.configure({
-                    codec: selectedCodec,
-                    width,
-                    height,
-                    bitrate: 12_000_000,
-                    framerate: fps,
-                    hardwareAcceleration: 'prefer-software'
+                    codec: 'avc1.640033',
+                    width: width,
+                    height: height,
+                    bitrate: 8_000_000,
+                    framerate: fps
                 });
 
                 // Set up audio encoder if we have audio
